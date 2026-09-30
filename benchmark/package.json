@@ -1,0 +1,21 @@
+{
+  "name": "zerotrust-benchmark",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ZeroTrustAPI Benchmark & Load-Testing Harness (Member 4)",
+  "main": "dist/src/harness.js",
+  "scripts": {
+    "build": "tsc",
+    "bench": "tsx scripts/run-comparison.ts",
+    "bench:baseline": "tsx scripts/run-baseline.ts",
+    "bench:gateway": "tsx scripts/run-gateway.ts"
+  },
+  "keywords": ["benchmark", "loadtest", "zerotrust", "latency", "p99"],
+  "author": "Member 4",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}

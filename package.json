@@ -1,0 +1,19 @@
+{
+  "name": "zerotrust-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ZeroTrustAPI Monorepo",
+  "scripts": {
+    "dev:events": "npm --prefix events run dev",
+    "dev:dashboard": "npm --prefix dashboard run dev",
+    "test:events": "npm --prefix events test",
+    "build:events": "npm --prefix events run build",
+    "build:dashboard": "npm --prefix dashboard run build",
+    "build:benchmark": "npm --prefix benchmark run build",
+    "build:all": "npm run build:events && npm run build:dashboard && npm run build:benchmark",
+    "bench": "npm --prefix benchmark run bench"
+  },
+  "keywords": ["zerotrust", "security", "monorepo"],
+  "author": "ZeroTrustAPI Team",
+  "license": "ISC"
+}
