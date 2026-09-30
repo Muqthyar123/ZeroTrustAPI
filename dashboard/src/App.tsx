@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { Overview } from './pages/Overview';
 import { Events } from './pages/Events';
 import { Scans } from './pages/Scans';
+import { DemoControl } from './pages/DemoControl';
 import { EventDetailsModal } from './components/EventDetailsModal';
 import { useStats } from './hooks/useStats';
 import { useEvents } from './hooks/useEvents';
@@ -11,7 +12,7 @@ import { useEventStream } from './hooks/useEventStream';
 import { SecurityEvent } from './types';
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState<string>('overview');
+  const [currentTab, setCurrentTab] = useState<string>('demo');
   const [selectedEvent, setSelectedEvent] = useState<SecurityEvent | null>(null);
 
   // Filters state
@@ -55,6 +56,8 @@ export function App() {
 
   const getPageTitle = () => {
     switch (currentTab) {
+      case 'demo':
+        return 'Interactive Live Evaluation & Attack Hub';
       case 'overview':
         return 'Zero-Trust Security Command Center';
       case 'events':
@@ -68,6 +71,8 @@ export function App() {
 
   const getPageSubtitle = () => {
     switch (currentTab) {
+      case 'demo':
+        return 'Execute real-time BOLA attacks, run automated security scans, switch enforcement modes, and reset seed data with a single click.';
       case 'overview':
         return 'Real-time monitoring of BOLA/IDOR mitigation, gateway telemetry, and authorization decisions';
       case 'events':
@@ -86,6 +91,8 @@ export function App() {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         sseStatus={sseStatus}
+        stats={stats}
+        latestEvent={latestEvent}
       />
 
       {/* Main Content Area */}
@@ -98,6 +105,8 @@ export function App() {
         />
 
         <main className="p-6 flex-1 overflow-y-auto max-w-7xl mx-auto w-full">
+          {currentTab === 'demo' && <DemoControl />}
+
           {currentTab === 'overview' && (
             <Overview
               stats={stats}

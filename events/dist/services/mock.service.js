@@ -14,127 +14,172 @@ class MockService {
         this.scans = scans;
     }
     async seedInitialData() {
-        // 1. Seed realistic scan results (BOLA / IDOR findings)
+        // 1. Seed realistic scan results matching M2/M3 actual contract (36 probes, 13 BOLA findings)
         await this.scans.recordScan({
-            scanId: 'scan_init_demo_001',
-            commit: 'a9f4c3b',
+            scanId: 'scan_init_m3_bola_001',
+            commit: 'm3-scanner-v1.0',
             startedAt: new Date(Date.now() - 3600000).toISOString(),
-            target: 'http://sample-app:3000',
+            target: 'http://localhost:3000',
             summary: {
-                total: 24,
-                passed: 18,
-                failed: 6
+                total: 36,
+                passed: 23,
+                failed: 13,
+                status: 'FAIL',
+                totalProbes: 36,
+                totalFindings: 13,
+                highFindings: 12,
+                mediumFindings: 1,
+                lowFindings: 0
             },
             findings: [
                 {
                     method: 'GET',
-                    routeTemplate: '/api/v1/documents/{documentId}',
-                    attackerTenant: 'tenant-beta',
-                    victimTenant: 'tenant-alpha',
+                    routeTemplate: '/api/orders/{orderId}',
+                    attackerTenant: 'tenantA',
+                    victimTenant: 'tenantB',
                     expectedStatus: 403,
                     actualStatus: 200,
-                    severity: 'HIGH'
-                },
-                {
-                    method: 'DELETE',
-                    routeTemplate: '/api/v1/accounts/{accountId}',
-                    attackerTenant: 'tenant-gamma',
-                    victimTenant: 'tenant-alpha',
-                    expectedStatus: 403,
-                    actualStatus: 204,
-                    severity: 'HIGH'
+                    severity: 'HIGH',
+                    findingId: 'find_userA1_order_201',
+                    title: 'Cross-Tenant BOLA Vulnerability Detected',
+                    description: "User 'userA1' (tenantA) was granted unauthorized GET access to Order 201 (tenantB).",
+                    authenticatedUser: 'userA1'
                 },
                 {
                     method: 'GET',
-                    routeTemplate: '/api/v1/orders/{orderId}',
-                    attackerTenant: 'tenant-beta',
-                    victimTenant: 'tenant-gamma',
+                    routeTemplate: '/api/orders/{orderId}',
+                    attackerTenant: 'tenantA',
+                    victimTenant: 'tenantB',
                     expectedStatus: 403,
                     actualStatus: 200,
-                    severity: 'MEDIUM'
+                    severity: 'HIGH',
+                    findingId: 'find_userA1_order_202',
+                    title: 'Cross-Tenant BOLA Vulnerability Detected',
+                    description: "User 'userA1' (tenantA) was granted unauthorized GET access to Order 202 (tenantB).",
+                    authenticatedUser: 'userA1'
                 },
                 {
-                    method: 'POST',
-                    routeTemplate: '/api/v1/reports/export',
-                    attackerTenant: 'tenant-delta',
-                    victimTenant: 'tenant-beta',
+                    method: 'DELETE',
+                    routeTemplate: '/api/orders/{orderId}',
+                    attackerTenant: 'tenantA',
+                    victimTenant: 'tenantB',
                     expectedStatus: 403,
                     actualStatus: 200,
-                    severity: 'MEDIUM'
+                    severity: 'HIGH',
+                    findingId: 'find_userA1_delete_201',
+                    title: 'Cross-Tenant Unauthorized Order Deletion',
+                    description: "User 'userA1' (tenantA) was granted unauthorized DELETE access to Order 201 (tenantB).",
+                    authenticatedUser: 'userA1'
+                },
+                {
+                    method: 'GET',
+                    routeTemplate: '/api/users/{userId}/documents/{documentId}',
+                    attackerTenant: 'tenantA',
+                    victimTenant: 'tenantB',
+                    expectedStatus: 403,
+                    actualStatus: 200,
+                    severity: 'HIGH',
+                    findingId: 'find_userA1_doc_201',
+                    title: 'Nested Subresource IDOR Access',
+                    description: "User 'userA1' accessed victim's document doc-201 belonging to userB1 in tenantB.",
+                    authenticatedUser: 'userA1'
+                },
+                {
+                    method: 'GET',
+                    routeTemplate: '/api/invoices/{invoiceId}',
+                    attackerTenant: 'tenantB',
+                    victimTenant: 'tenantA',
+                    expectedStatus: 403,
+                    actualStatus: 200,
+                    severity: 'MEDIUM',
+                    findingId: 'find_userB1_inv_101',
+                    title: 'Cross-Tenant Invoice Read Access',
+                    description: "User 'userB1' (tenantB) accessed Invoice inv_101 belonging to tenantA without delegation.",
+                    authenticatedUser: 'userB1'
                 }
             ]
         });
-        // 2. Seed initial history of security events
+        // 2. Seed initial history of security events matching tenantA and tenantB
         const initialEvents = [
             {
                 method: 'GET',
-                routeTemplate: '/api/v1/documents/{documentId}',
-                resourceType: 'document',
-                tenantId: 'tenant-alpha',
-                objectTenantId: 'tenant-alpha',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantA',
                 decision: 'ALLOW',
                 reason: 'OK_OWNER',
-                authzLatencyUs: 420
-            },
-            {
-                method: 'GET',
-                routeTemplate: '/api/v1/documents/{documentId}',
-                resourceType: 'document',
-                tenantId: 'tenant-beta',
-                objectTenantId: 'tenant-alpha',
-                decision: 'BLOCK',
-                reason: 'TENANT_MISMATCH',
-                authzLatencyUs: 310
-            },
-            {
-                method: 'POST',
-                routeTemplate: '/api/v1/orders/{orderId}/checkout',
-                resourceType: 'order',
-                tenantId: 'tenant-alpha',
-                objectTenantId: 'tenant-alpha',
-                decision: 'ALLOW',
-                reason: 'OK_TENANT_SCOPE',
-                authzLatencyUs: 550
-            },
-            {
-                method: 'PUT',
-                routeTemplate: '/api/v1/accounts/{accountId}',
-                resourceType: 'account',
-                tenantId: 'tenant-gamma',
-                objectTenantId: 'tenant-gamma',
-                decision: 'BLOCK',
-                reason: 'NOT_OWNER',
                 authzLatencyUs: 280
             },
             {
                 method: 'GET',
-                routeTemplate: '/api/v1/invoices/{invoiceId}',
-                resourceType: 'invoice',
-                tenantId: 'tenant-finance',
-                objectTenantId: 'tenant-alpha',
-                decision: 'ALLOW',
-                reason: 'OK_DELEGATION',
-                authzLatencyUs: 610
-            },
-            {
-                method: 'DELETE',
-                routeTemplate: '/api/v1/users/{userId}',
-                resourceType: 'user',
-                tenantId: 'tenant-beta',
-                objectTenantId: 'tenant-beta',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantB',
                 decision: 'BLOCK',
-                reason: 'NO_SCOPE',
-                authzLatencyUs: 190
+                reason: 'TENANT_MISMATCH',
+                authzLatencyUs: 340
             },
             {
                 method: 'GET',
-                routeTemplate: '/api/v1/unknown/{resourceId}',
-                resourceType: 'unknown',
-                tenantId: 'tenant-delta',
-                objectTenantId: 'tenant-delta',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
+                tenantId: 'tenantB',
+                objectTenantId: 'tenantA',
+                decision: 'ALLOW',
+                reason: 'OK_DELEGATION',
+                authzLatencyUs: 310
+            },
+            {
+                method: 'POST',
+                routeTemplate: '/api/orders',
+                resourceType: 'orders',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantA',
+                decision: 'ALLOW',
+                reason: 'OK_OWNER',
+                authzLatencyUs: 450
+            },
+            {
+                method: 'DELETE',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantB',
                 decision: 'BLOCK',
-                reason: 'UNKNOWN_OBJECT',
-                authzLatencyUs: 150
+                reason: 'TENANT_MISMATCH',
+                authzLatencyUs: 290
+            },
+            {
+                method: 'GET',
+                routeTemplate: '/api/invoices/{invoiceId}',
+                resourceType: 'invoices',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantA',
+                decision: 'ALLOW',
+                reason: 'OK_OWNER',
+                authzLatencyUs: 220
+            },
+            {
+                method: 'GET',
+                routeTemplate: '/api/users/{userId}/documents/{documentId}',
+                resourceType: 'documents',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantB',
+                decision: 'BLOCK',
+                reason: 'TENANT_MISMATCH',
+                authzLatencyUs: 360
+            },
+            {
+                method: 'GET',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
+                tenantId: 'tenantA',
+                objectTenantId: 'tenantA',
+                decision: 'ALLOW',
+                reason: 'OK_SCOPE',
+                authzLatencyUs: 260
             }
         ];
         for (let i = 0; i < initialEvents.length; i++) {
@@ -145,7 +190,7 @@ class MockService {
                 method: e.method,
                 routeTemplate: e.routeTemplate,
                 resourceType: e.resourceType,
-                objectIdHash: (0, id_js_1.sha256)(`obj_${e.resourceType}_${i}`),
+                objectIdHash: (0, id_js_1.sha256)(`obj_${e.resourceType}_${i + 101}`),
                 subjectHash: (0, id_js_1.sha256)(`user_${e.tenantId}_${i}`),
                 tenantId: e.tenantId,
                 objectTenantId: e.objectTenantId,
@@ -162,51 +207,65 @@ class MockService {
         const templates = [
             {
                 method: 'GET',
-                routeTemplate: '/api/v1/documents/{documentId}',
-                resourceType: 'document',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
                 allowReason: 'OK_OWNER',
                 blockReason: 'TENANT_MISMATCH'
             },
             {
                 method: 'POST',
-                routeTemplate: '/api/v1/orders/{orderId}/pay',
-                resourceType: 'order',
-                allowReason: 'OK_TENANT_SCOPE',
-                blockReason: 'NOT_OWNER'
+                routeTemplate: '/api/orders',
+                resourceType: 'orders',
+                allowReason: 'OK_OWNER',
+                blockReason: 'TENANT_MISMATCH'
             },
             {
                 method: 'GET',
-                routeTemplate: '/api/v1/invoices/{invoiceId}',
-                resourceType: 'invoice',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
                 allowReason: 'OK_DELEGATION',
-                blockReason: 'NO_SCOPE'
+                blockReason: 'TENANT_MISMATCH'
+            },
+            {
+                method: 'GET',
+                routeTemplate: '/api/invoices/{invoiceId}',
+                resourceType: 'invoices',
+                allowReason: 'OK_OWNER',
+                blockReason: 'TENANT_MISMATCH'
+            },
+            {
+                method: 'GET',
+                routeTemplate: '/api/users/{userId}/documents/{documentId}',
+                resourceType: 'documents',
+                allowReason: 'OK_OWNER',
+                blockReason: 'TENANT_MISMATCH'
             },
             {
                 method: 'DELETE',
-                routeTemplate: '/api/v1/files/{fileId}',
-                resourceType: 'file',
+                routeTemplate: '/api/orders/{orderId}',
+                resourceType: 'orders',
                 allowReason: 'OK_OWNER',
-                blockReason: 'UNKNOWN_OBJECT'
+                blockReason: 'TENANT_MISMATCH'
             }
         ];
-        const tenants = ['tenant-alpha', 'tenant-beta', 'tenant-gamma', 'tenant-finance', 'tenant-ops'];
+        const tenants = ['tenantA', 'tenantB'];
         this.timer = setInterval(async () => {
             if (!this.isRunning)
                 return;
             const tmpl = templates[Math.floor(Math.random() * templates.length)];
-            const isAllowed = Math.random() > 0.35; // ~65% allow, 35% block
+            const isAllowed = Math.random() > 0.3; // ~70% allow, 30% block
             const tenant = tenants[Math.floor(Math.random() * tenants.length)];
-            const objectTenant = isAllowed ? tenant : tenants[Math.floor(Math.random() * tenants.length)];
+            const objectTenant = isAllowed ? tenant : (tenant === 'tenantA' ? 'tenantB' : 'tenantA');
             const reason = isAllowed ? tmpl.allowReason : tmpl.blockReason;
             const decision = isAllowed ? 'ALLOW' : 'BLOCK';
-            const latency = Math.floor(Math.random() * 450) + 120; // 120us - 570us
+            const latency = Math.floor(Math.random() * 320) + 140; // 140us - 460us
             try {
                 await this.events.recordEvent({
                     method: tmpl.method,
                     routeTemplate: tmpl.routeTemplate,
                     resourceType: tmpl.resourceType,
-                    objectIdHash: (0, id_js_1.sha256)(`res_${Date.now()}_${Math.random()}`),
-                    subjectHash: (0, id_js_1.sha256)(`sub_${tenant}_${Math.random()}`),
+                    objectIdHash: (0, id_js_1.sha256)(`order_${Date.now()}_${Math.random()}`),
+                    subjectHash: (0, id_js_1.sha256)(`user_${tenant}_${Math.random()}`),
                     tenantId: tenant,
                     objectTenantId: objectTenant,
                     decision,

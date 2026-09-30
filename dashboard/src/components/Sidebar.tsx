@@ -1,29 +1,87 @@
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Shield,
   SearchCode,
-  Lock
+  Lock,
+  Zap,
+  Server,
+  Activity,
+  Timer,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
+import { SecurityStats, SecurityEvent } from '../types';
 
 interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   sseStatus: string;
+  stats?: SecurityStats | null;
+  latestEvent?: SecurityEvent | null;
+}
+
+interface NodeHealth {
+  name: string;
+  port: number;
+  url: string;
+  online: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
-  sseStatus
+  sseStatus,
+  stats,
+  latestEvent
 }) => {
+  const [nodes, setNodes] = useState<NodeHealth[]>([
+    { name: 'Gateway', port: 8080, url: 'http://localhost:8080/_zt/health', online: true },
+    { name: 'Events', port: 5000, url: 'http://localhost:5000/health', online: true },
+    { name: 'Sample App', port: 3000, url: 'http://localhost:3000/health', online: true },
+    { name: 'Ownership', port: 4000, url: 'http://localhost:4000/health', online: true },
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkHealth() {
+      const updated = await Promise.all(
+        nodes.map(async (node) => {
+          try {
+            const res = await fetch(node.url, { signal: AbortSignal.timeout(1500) });
+            return { ...node, online: res.ok };
+          } catch {
+            return { ...node, online: false };
+          }
+        })
+      );
+      if (isMounted) {
+        setNodes(updated);
+      }
+    }
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 4000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   const navItems = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'demo', label: '⚡ Live Demo & Attack Hub', icon: Zap },
+    { id: 'overview', label: 'Security Overview', icon: LayoutDashboard },
     { id: 'events', label: 'Security Events', icon: Shield },
     { id: 'scans', label: 'Scan Results', icon: SearchCode },
   ];
 
+  const blockRate = stats?.blockRate ?? 0;
+  const latency = stats?.avgAuthzLatencyUs ?? 0;
+  const total = stats?.totalEvents ?? 0;
+
   return (
-    <aside className="w-64 bg-dark-900 border-r border-slate-800 flex flex-col justify-between shrink-0 h-screen sticky top-0">
+    <aside className="w-64 bg-dark-900 border-r border-slate-800 flex flex-col justify-between shrink-0 h-screen sticky top-0 overflow-y-auto">
       <div>
         {/* Brand Header */}
         <div className="h-16 flex items-center px-6 border-b border-slate-800 gap-3">
@@ -36,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-cyan-400">API</span>
             </div>
             <div className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">
-              Security Hub (M4)
+              Live SOC Console
             </div>
           </div>
         </div>
@@ -98,19 +156,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Footer Info */}
-      <div className="p-4 border-t border-slate-800 text-xs text-slate-500 space-y-2">
-        <div className="flex items-center justify-between text-[11px] font-mono">
-          <span>Events API</span>
-          <span className="text-cyan-400">:5000</span>
+      {/* Real-World Backend Connected Live Telemetry Panel at Bottom */}
+      <div className="p-3 border-t border-slate-800 bg-dark-950/70 space-y-3">
+        {/* Real-time Backend Engine Metrics */}
+        <div className="p-2.5 bg-dark-900 rounded-lg border border-slate-800/90 shadow-inner space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-300">
+            <span className="flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Engine Telemetry</span>
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/50">
+              {total} Evts
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+            <div className="bg-dark-950 px-2 py-1.5 rounded border border-slate-800/60">
+              <span className="text-slate-500 block text-[9px]">BLOCK RATE</span>
+              <span className={`font-bold ${blockRate > 30 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {blockRate}%
+              </span>
+            </div>
+            <div className="bg-dark-950 px-2 py-1.5 rounded border border-slate-800/60">
+              <span className="text-slate-500 block text-[9px] flex items-center gap-1">
+                <Timer className="w-2.5 h-2.5" /> LATENCY
+              </span>
+              <span className="font-bold text-slate-200">{latency} µs</span>
+            </div>
+          </div>
+
+          {/* Real-Time Last Intercepted Action */}
+          {latestEvent && (
+            <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono">
+              <span className="text-slate-500 truncate max-w-[120px]" title={latestEvent.routeTemplate}>
+                {latestEvent.routeTemplate.replace('/api/', '')}
+              </span>
+              <span
+                className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                  latestEvent.decision === 'BLOCK'
+                    ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                    : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                }`}
+              >
+                {latestEvent.decision}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center justify-between text-[11px] font-mono">
-          <span>Gateway</span>
-          <span className="text-slate-400">:8080 (M1)</span>
-        </div>
-        <div className="flex items-center justify-between text-[11px] font-mono">
-          <span>Scanner</span>
-          <span className="text-slate-400">Target (M3)</span>
+
+        {/* Live Cluster Services Health Grid */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase tracking-wider px-1">
+            <span className="flex items-center gap-1">
+              <Server className="w-3 h-3 text-purple-400" />
+              <span>Live Cluster Nodes</span>
+            </span>
+            <span className="text-emerald-400 font-bold">
+              {nodes.filter((n) => n.online).length}/{nodes.length} Up
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+            {nodes.map((node) => (
+              <div
+                key={node.port}
+                className="flex items-center justify-between px-2 py-1 bg-dark-900 rounded border border-slate-800/80 hover:border-slate-700 transition-colors"
+                title={`${node.name} on port ${node.port}: ${node.online ? 'Online' : 'Offline'}`}
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  {node.online ? (
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                  ) : (
+                    <XCircle className="w-3 h-3 text-rose-400 shrink-0" />
+                  )}
+                  <span className="text-slate-300 truncate">{node.name}</span>
+                </div>
+                <span className="text-slate-500 text-[9px] shrink-0">:{node.port}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </aside>

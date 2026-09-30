@@ -13,6 +13,16 @@ export function buildOwnershipApp(opts: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify(opts.fastifyOpts || {});
   const redis = opts.redis || getRedisClient();
 
+  // Enable CORS
+  app.addHook("onRequest", async (request, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+    if (request.method === "OPTIONS") {
+      return reply.status(204).send();
+    }
+  });
+
   // Health check endpoint
   app.get("/health", async () => {
     return {

@@ -8,17 +8,26 @@ export const Scans: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
       try {
         const data = await fetchScans();
-        setScans(data);
+        if (isMounted) setScans(data);
       } catch (err) {
         console.error('Failed to load scans:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
+
     load();
+    const interval = setInterval(load, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   return (

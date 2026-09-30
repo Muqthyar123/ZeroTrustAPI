@@ -13,11 +13,7 @@ export function createOwnershipRoutes(redis: Redis): FastifyPluginAsync {
   const repo = new OwnershipRepository(redis);
 
   return async (app: FastifyInstance) => {
-    /**
-     * PUT /v1/ownership
-     * Creates or updates ownership record in Redis.
-     */
-    app.put<{ Body: PutOwnershipBody }>("/v1/ownership", async (request, reply) => {
+    const putHandler = async (request: any, reply: any) => {
       const { resourceType, objectId, tenantId, ownerUserId } = request.body || {};
 
       if (!resourceType || !objectId || !tenantId || !ownerUserId) {
@@ -34,51 +30,58 @@ export function createOwnershipRoutes(redis: Redis): FastifyPluginAsync {
       );
 
       return reply.status(200).send(record);
-    });
+    };
 
-    /**
-     * GET /v1/ownership/:resourceType/:objectId
-     * Retrieves ownership record from Redis.
-     */
+    const getHandler = async (request: any, reply: any) => {
+      const { resourceType, objectId } = request.params;
+      const record = await repo.getOwnership(resourceType, objectId);
+
+      if (!record) {
+        return reply.status(404).send({
+          error: "ownership record not found",
+        });
+      }
+
+      return reply.status(200).send(record);
+    };
+
+    const deleteHandler = async (request: any, reply: any) => {
+      const { resourceType, objectId } = request.params;
+      const deleted = await repo.deleteOwnership(resourceType, objectId);
+
+      if (!deleted) {
+        return reply.status(404).send({
+          error: "ownership record not found",
+        });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: "ownership record deleted",
+        resourceType,
+        objectId,
+      });
+    };
+
+    app.put<{ Body: PutOwnershipBody }>("/v1/ownership", putHandler);
+    app.put<{ Body: PutOwnershipBody }>("/ownership", putHandler);
+
     app.get<{ Params: { resourceType: string; objectId: string } }>(
       "/v1/ownership/:resourceType/:objectId",
-      async (request, reply) => {
-        const { resourceType, objectId } = request.params;
-        const record = await repo.getOwnership(resourceType, objectId);
-
-        if (!record) {
-          return reply.status(404).send({
-            error: "ownership record not found",
-          });
-        }
-
-        return reply.status(200).send(record);
-      },
+      getHandler,
+    );
+    app.get<{ Params: { resourceType: string; objectId: string } }>(
+      "/ownership/:resourceType/:objectId",
+      getHandler,
     );
 
-    /**
-     * DELETE /v1/ownership/:resourceType/:objectId
-     * Deletes ownership record from Redis.
-     */
     app.delete<{ Params: { resourceType: string; objectId: string } }>(
       "/v1/ownership/:resourceType/:objectId",
-      async (request, reply) => {
-        const { resourceType, objectId } = request.params;
-        const deleted = await repo.deleteOwnership(resourceType, objectId);
-
-        if (!deleted) {
-          return reply.status(404).send({
-            error: "ownership record not found",
-          });
-        }
-
-        return reply.status(200).send({
-          success: true,
-          message: "ownership record deleted",
-          resourceType,
-          objectId,
-        });
-      },
+      deleteHandler,
+    );
+    app.delete<{ Params: { resourceType: string; objectId: string } }>(
+      "/ownership/:resourceType/:objectId",
+      deleteHandler,
     );
   };
 }

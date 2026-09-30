@@ -6,6 +6,7 @@ import { createOrderRoutes } from "./orders/orders.routes.js";
 import { defaultOwnershipClient, OwnershipClient } from "./ownership/ownershipClient.js";
 import { openApiDocument } from "./openapi/openapiDoc.js";
 import { getTestFixtures } from "./fixtures/fixtures.js";
+import { orderStore } from "./orders/orderStore.js";
 
 export interface AppOptions {
   fastifyOpts?: FastifyHttpOptions<RawServerDefault>;
@@ -16,11 +17,22 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   const app = Fastify(opts.fastifyOpts || {});
   const ownershipClient = opts.ownershipClient || defaultOwnershipClient;
 
+  // Enable CORS for browser access
+  app.addHook("onRequest", async (request, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+    if (request.method === "OPTIONS") {
+      return reply.status(204).send();
+    }
+  });
+
   // Health check endpoint
   app.get("/health", async () => {
     return {
       status: "ok",
       service: "sample-app",
+      mode: process.env.APP_MODE || "vulnerable",
     };
   });
 
@@ -32,6 +44,25 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   // Test fixtures discovery endpoint for CI/scanner environments
   app.get("/_test/fixtures", async () => {
     return getTestFixtures();
+  });
+
+  // Reset in-memory orders store to initial seed state
+  app.post("/_test/reset", async () => {
+    orderStore.reset();
+    return {
+      status: "ok",
+      message: "Sample app orders reset to initial seed state",
+      ordersCount: orderStore.getAll().length,
+    };
+  });
+
+  // Mode switcher endpoint (vulnerable <-> secure)
+  app.post<{ Body: { mode?: string } }>("/_test/mode", async (request) => {
+    const mode = request.body?.mode;
+    if (mode === "vulnerable" || mode === "secure") {
+      process.env.APP_MODE = mode;
+    }
+    return { mode: process.env.APP_MODE || "vulnerable" };
   });
 
   // Authentication login endpoint
