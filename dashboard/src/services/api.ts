@@ -47,3 +47,19 @@ export async function fetchScanById(scanId: string): Promise<ScanResult> {
   }
   return res.json();
 }
+
+export async function runScannerApi(options: {
+  targetUrl?: string;
+  openapiUrl?: string;
+  fixturesUrl?: string;
+} = {}): Promise<{ success: boolean; exitCode: number; stdout: string; scan: ScanResult | null }> {
+  const res = await fetch(`${API_BASE}/v1/scans/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to execute scan: ${res.statusText}`);
+  }
+  return res.json();
+}

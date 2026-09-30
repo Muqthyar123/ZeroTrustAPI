@@ -1,6 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { CreateScanSchema } from '../validators/scan.validator.js';
 import { ScanService, scanService } from '../services/scan.service.js';
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export class ScansController {
   constructor(private scans: ScanService = scanService) {}
@@ -44,6 +50,57 @@ export class ScansController {
       });
     }
     return reply.status(200).send(scan);
+  };
+
+  public runScan = async (
+    request: FastifyRequest<{
+      Body: {
+        targetUrl?: string;
+        openapiUrl?: string;
+        fixturesUrl?: string;
+      };
+    }>,
+    reply: FastifyReply
+  ) => {
+    const targetUrl = request.body?.targetUrl || 'http://localhost:8080';
+    const openapiUrl = request.body?.openapiUrl || `${targetUrl}/openapi.json`;
+    const fixturesUrl = request.body?.fixturesUrl || `${targetUrl}/_test/fixtures`;
+    const reportUrl = 'http://localhost:5000';
+
+    try {
+      const projectRoot = path.resolve(__dirname, '..', '..', '..');
+      const cliPath = path.resolve(projectRoot, 'scanner', 'dist', 'cli.js');
+
+      const args = [
+        'scan',
+        '--openapi', openapiUrl,
+        '--fixtures', fixturesUrl,
+        '--target', targetUrl,
+        '--report', reportUrl,
+      ];
+
+      const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
+        execFile('node', [cliPath, ...args], { cwd: projectRoot }, (error, stdout, stderr) => {
+          const exitCode = error && typeof error.code === 'number' ? error.code : 0;
+          resolve({ exitCode, stdout, stderr });
+        });
+      });
+
+      const allScans = await this.scans.getAllScans();
+      const latestScan = allScans[0] || null;
+
+      return reply.status(200).send({
+        success: true,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        scan: latestScan,
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        error: 'Scan Execution Failed',
+        message: err.message || 'Failed to run scanner CLI',
+      });
+    }
   };
 }
 
