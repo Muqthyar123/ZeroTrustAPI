@@ -38,17 +38,19 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   app.post("/auth/login", async (request, reply) => {
     const body = request.body as {
       email?: string;
+      username?: string;
       password?: string;
     };
 
-    if (!body?.email || !body?.password) {
+    const identifier = body?.email || body?.username;
+    if (!identifier || !body?.password) {
       return reply.status(400).send({
-        error: "email and password are required",
+        error: "email (or username) and password are required",
       });
     }
 
     const user = users.find(
-      (item) => item.email === body.email && item.password === body.password,
+      (item) => (item.email === identifier || item.userId === identifier) && item.password === body.password,
     );
 
     if (!user) {
@@ -70,6 +72,15 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const { invoiceId } = request.params;
+      const appMode = process.env.APP_MODE || "vulnerable";
+      if (appMode !== "vulnerable") {
+        const user = request.user!;
+        if (user.tenant_id !== "tenantA") {
+          return reply.status(403).send({
+            error: "forbidden: cross-tenant invoice access denied",
+          });
+        }
+      }
       return reply.status(200).send({
         id: invoiceId,
         orderId: "101",
@@ -85,6 +96,23 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const { userId, documentId } = request.params;
+      const appMode = process.env.APP_MODE || "vulnerable";
+      const docOwners: Record<string, string> = {
+        "doc-101": "userA1",
+        "doc-201": "userB1",
+      };
+
+      if (appMode !== "vulnerable") {
+        const user = request.user!;
+        if (
+          user.sub !== userId ||
+          (docOwners[documentId] && docOwners[documentId] !== user.sub)
+        ) {
+          return reply.status(403).send({
+            error: "forbidden: access to other user documents denied",
+          });
+        }
+      }
       return reply.status(200).send({
         documentId,
         userId,

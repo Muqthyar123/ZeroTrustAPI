@@ -1,13 +1,14 @@
-# ZeroTrustAPI - Integrated Multi-Service Architecture (M2 + M4)
+# ZeroTrustAPI - Integrated Multi-Service Architecture (M2 + M3 + M4)
 
 ## Overview
-This repository contains the ZeroTrustAPI reference testbed services:
+This repository contains the ZeroTrustAPI reference testbed services and security tooling:
 1. **Sample App** (`sample-app/`): Multi-tenant REST API managing orders, authentication, invoices, user documents, OpenAPI contract, and test fixtures (Port `3000`).
 2. **Ownership Service** (`ownership/`): High-performance microservice managing object ownership metadata and tenant delegation records backed by Redis (Port `4000`).
 3. **Redis**: In-memory database holding write-through ownership and delegation hashes (Port `6379`).
 4. **Events Service** (`events/`): Security event aggregation, auditing, and analytics microservice with SSE streaming, statistics, and scan ingestion (Port `5000`).
 5. **Security Dashboard** (`dashboard/`): Real-time React frontend visualizing authorization decisions, BOLA blocks, latency distributions, and scanner reports (Port `5173`).
-6. **Benchmark Suite** (`benchmark/`): High-throughput load testing and comparative latency benchmarking harness.
+6. **BOLA Security Scanner** (`scanner/`): Automated CLI vulnerability scanner and probe engine performing dynamic OpenAPI-driven BOLA testing, severity classification, and CI/CD gating.
+7. **Benchmark Suite** (`benchmark/`): High-throughput load testing and comparative latency benchmarking harness.
 
 > [!WARNING]
 > **Intentionally Vulnerable by Default (`APP_MODE=vulnerable`)**:
@@ -17,15 +18,54 @@ This repository contains the ZeroTrustAPI reference testbed services:
 
 ---
 
-## Service Port Matrix
+## Service & Tool Matrix
 
-| Service | Directory | Port | Protocol | Role |
+| Service / Tool | Directory | Port / Mode | Protocol | Role |
 | :--- | :--- | :--- | :--- | :--- |
 | **Sample App** | `sample-app/` | `3000` | HTTP / REST | Vulnerable target API, OpenAPI specs, fixtures |
 | **Ownership Service** | `ownership/` | `4000` | HTTP / REST | Object ownership (`obj:*`) & delegations (`deleg:*`) |
 | **Events Service** | `events/` | `5000` | HTTP / REST / SSE | Audit logging, stats calculation, scanner findings |
 | **Security Dashboard** | `dashboard/` | `5173` | HTTP / React SPA | Live decision monitor, BOLA alerts, scan UI |
 | **Redis** | Docker | `6379` | RESP | Distributed ownership cache |
+| **BOLA Scanner** | `scanner/` | CLI / CI Tool | HTTP Client | Automated OpenAPI BOLA probe suite & CI gate |
+
+---
+
+## BOLA Security Scanner (M3)
+
+The automated scanner discovers endpoints from the OpenAPI specification, fetches test fixtures, logs in as fixture users to acquire JWTs, and executes dynamic security probes:
+
+### Probe Categories
+- **Own Object Probes**: Verifies legitimate access to user-owned resources (expected `200 OK`).
+- **Cross-Tenant Probes**: Attempts cross-tenant object access without delegation (detects BOLA in vulnerable mode, expected `403/404` in secure mode).
+- **Same-Tenant Probes**: Tests boundary isolation between distinct users in the same tenant.
+- **Nested Resource Probes**: Dynamically parses multi-parameter routes (e.g., `/api/users/{userId}/documents/{documentId}`) to detect IDOR.
+- **Write/Delete Mutation Probes**: Tests unauthorized state mutations (`POST`, `DELETE`) across tenant boundaries.
+- **Delegation-Aware Testing**: Understands valid delegations (e.g., `userB1` read access on `tenantA` orders) and does not falsely flag authorized delegation access.
+
+### Running Scanner CLI
+```bash
+# Build scanner
+cd scanner && npm run build
+
+# Run scan against target API and submit report to Events Service
+node dist/cli.js scan \
+  --openapi http://localhost:3000/openapi.json \
+  --fixtures http://localhost:3000/_test/fixtures \
+  --target http://localhost:3000 \
+  --report http://localhost:5000
+```
+
+### Scanner CLI Options
+- `--openapi <url>`: URL of the OpenAPI 3.0.3 specification JSON (default: `http://localhost:3000/openapi.json`).
+- `--fixtures <url>`: URL of the test fixtures endpoint (default: `http://localhost:3000/_test/fixtures`).
+- `--target <url>`: Base URL of the target API application (default: `http://localhost:3000`).
+- `--report <url>`: Events service endpoint for scan report submission (optional).
+- `--timeout <ms>`: HTTP request timeout in milliseconds (default: `10000`).
+
+### Scanner CI/CD Gate
+- **Exit code `0`**: Scan passed (0 vulnerabilities detected).
+- **Exit code `1`**: Scan failed (BOLA vulnerabilities detected, fails CI pipeline).
 
 ---
 
@@ -143,9 +183,12 @@ cd sample-app && npm test
 # 3. Events Service tests (15 tests)
 cd events && npm test
 
-# 4. Live stack verification against standard ports (3000, 4000, 5000, 5173)
-npx tsx scripts/verify-live-stack.ts
+# 4. Scanner tests (26 tests)
+cd scanner && npm test
 
-# 5. In-process multi-service E2E integration runner (uses isolated ports 3088/4088/5088 to avoid port collisions during parallel CI runs)
+# 5. Full M2 + M3 + M4 E2E Integration Suite (Tests Vulnerable mode exit 1, Secure mode exit 0, and M4 report storage)
+npx tsx scripts/verify-m2-m3-m4-e2e.ts
+
+# 6. In-process multi-service E2E integration runner (M2+M4)
 npx tsx scripts/run-all-m2-m4-e2e.ts
 ```
