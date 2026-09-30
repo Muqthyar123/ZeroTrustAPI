@@ -1,0 +1,27 @@
+{
+  "name": "zerotrust-scanner",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "test": "vitest",
+    "test:run": "vitest run tests/parser.test.ts tests/probes.test.ts tests/severity.test.ts tests/analyzer.test.ts tests/report.test.ts",
+    "test:e2e": "vitest run tests/e2e/scanner-e2e.test.ts"
+
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "^12.0.0",
+    "commander": "^14.0.0",
+    "js-yaml": "^4.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.19.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  }
+}

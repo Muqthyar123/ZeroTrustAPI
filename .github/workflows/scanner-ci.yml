@@ -1,0 +1,49 @@
+name: ZeroTrustAPI Scanner CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: Build & Test Scanner
+    runs-on: ubuntu-latest
+
+    env:
+      # Placeholder environment variables for future real-backend integration
+      OPENAPI_URL: "http://localhost:3000/openapi.json"
+      FIXTURES_URL: "http://localhost:3000/_test/fixtures"
+      TARGET_URL: "http://localhost:3000"
+      REPORT_URL: "http://localhost:5000"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Scanner
+        run: npm run build
+
+      - name: Run Unit Tests
+        run: npm run test:run
+
+      - name: Run Scanner-side Mock E2E Tests
+        run: npm run test:e2e
+
+      - name: Upload Build Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanner-build-dist
+          path: dist/
+          retention-days: 7
