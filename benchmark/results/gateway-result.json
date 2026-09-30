@@ -1,0 +1,15 @@
+{
+  "name": "Zero-Trust Telemetry & Verification Gateway",
+  "url": "http://localhost:5000/v1/events",
+  "totalRequests": 9945,
+  "successfulRequests": 9945,
+  "failedRequests": 0,
+  "durationMs": 3000.67,
+  "requestsPerSecond": 3314.26,
+  "p50Ms": 1.86,
+  "p95Ms": 5.49,
+  "p99Ms": 7.85,
+  "minMs": 0.78,
+  "maxMs": 13.41,
+  "avgMs": 2.41
+}

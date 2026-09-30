@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+*/node_modules/
+*/*/node_modules/
+
+# Build artifacts
+dist/
+*/dist/
+*/*/dist/
+build/
+*/build/
+
+# Logs and environment
+*.log
+.env
+.env.local
+.env.*.local
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Testing and coverage
+coverage/
+*/coverage/
+.vitest/

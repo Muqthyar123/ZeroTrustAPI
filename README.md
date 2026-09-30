@@ -1,16 +1,31 @@
-# ZeroTrustAPI - OpenAPI Contract & Test Fixtures (Milestone 2)
+# ZeroTrustAPI - Integrated Multi-Service Architecture (M2 + M4)
 
 ## Overview
 This repository contains the ZeroTrustAPI reference testbed services:
-1. **Sample App** (`sample-app/`): Multi-tenant REST API managing orders, authentication, invoices, user documents, OpenAPI contract, and test fixtures (port `3000`).
-2. **Ownership Service** (`ownership/`): Microservice managing object ownership metadata and tenant delegation records backed by Redis (port `4000`).
-3. **Redis**: In-memory database holding write-through ownership and delegation hashes (port `6379`).
+1. **Sample App** (`sample-app/`): Multi-tenant REST API managing orders, authentication, invoices, user documents, OpenAPI contract, and test fixtures (Port `3000`).
+2. **Ownership Service** (`ownership/`): High-performance microservice managing object ownership metadata and tenant delegation records backed by Redis (Port `4000`).
+3. **Redis**: In-memory database holding write-through ownership and delegation hashes (Port `6379`).
+4. **Events Service** (`events/`): Security event aggregation, auditing, and analytics microservice with SSE streaming, statistics, and scan ingestion (Port `5000`).
+5. **Security Dashboard** (`dashboard/`): Real-time React frontend visualizing authorization decisions, BOLA blocks, latency distributions, and scanner reports (Port `5173`).
+6. **Benchmark Suite** (`benchmark/`): High-throughput load testing and comparative latency benchmarking harness.
 
 > [!WARNING]
 > **Intentionally Vulnerable by Default (`APP_MODE=vulnerable`)**:
 > The sample application intentionally demonstrates a **Broken Object Level Authorization (BOLA / IDOR)** vulnerability. While endpoints require valid JWT authentication, the sample application in `vulnerable` mode does not enforce tenant or object ownership boundaries. This allows an authenticated user in `tenantA` (e.g. `userA1`) to access or delete objects belonging to `tenantB` (e.g. order `201`).
 >
-> In subsequent milestones, the external **ZeroTrustAPI Gateway** will inspect, detect, and block these unauthorized cross-tenant and unowned access attempts using the Ownership Service as the source of truth.
+> In subsequent milestones, the external **ZeroTrustAPI Gateway** (M1) will inspect, detect, and block these unauthorized cross-tenant and unowned access attempts using the Ownership Service as the source of truth, emitting audit events to the Events Service (M4).
+
+---
+
+## Service Port Matrix
+
+| Service | Directory | Port | Protocol | Role |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sample App** | `sample-app/` | `3000` | HTTP / REST | Vulnerable target API, OpenAPI specs, fixtures |
+| **Ownership Service** | `ownership/` | `4000` | HTTP / REST | Object ownership (`obj:*`) & delegations (`deleg:*`) |
+| **Events Service** | `events/` | `5000` | HTTP / REST / SSE | Audit logging, stats calculation, scanner findings |
+| **Security Dashboard** | `dashboard/` | `5173` | HTTP / React SPA | Live decision monitor, BOLA alerts, scan UI |
+| **Redis** | Docker | `6379` | RESP | Distributed ownership cache |
 
 ---
 
@@ -54,93 +69,6 @@ For automated CI scanners and testing environments, the Sample App exposes a det
 curl -X GET http://localhost:3000/_test/fixtures
 ```
 
-### Fixture Structure
-```json
-{
-  "version": "1.0.0",
-  "tenants": [
-    { "tenantId": "tenantA", "name": "Tenant A Organization" },
-    { "tenantId": "tenantB", "name": "Tenant B Organization" }
-  ],
-  "users": [
-    {
-      "userId": "userA1",
-      "email": "userA1@example.com",
-      "tenantId": "tenantA",
-      "orgId": "tenantA",
-      "scope": ["orders:read"],
-      "ownedOrders": ["101", "102"]
-    },
-    {
-      "userId": "userA2",
-      "email": "userA2@example.com",
-      "tenantId": "tenantA",
-      "orgId": "tenantA",
-      "scope": ["orders:read:tenant"],
-      "ownedOrders": []
-    },
-    {
-      "userId": "userB1",
-      "email": "userB1@example.com",
-      "tenantId": "tenantB",
-      "orgId": "tenantB",
-      "scope": ["orders:read"],
-      "ownedOrders": ["201", "202"]
-    }
-  ],
-  "objects": {
-    "orders": [
-      { "id": "101", "tenantId": "tenantA", "ownerUserId": "userA1" },
-      { "id": "102", "tenantId": "tenantA", "ownerUserId": "userA1" },
-      { "id": "201", "tenantId": "tenantB", "ownerUserId": "userB1" },
-      { "id": "202", "tenantId": "tenantB", "ownerUserId": "userB1" }
-    ]
-  },
-  "delegations": [
-    {
-      "delegationId": "userB1:tenantA:orders",
-      "granteeUserId": "userB1",
-      "ownerTenantId": "tenantA",
-      "resourceType": "orders",
-      "actions": "read",
-      "status": "active"
-    }
-  ],
-  "expectedAuthorization": [
-    {
-      "scenario": "Owner accesses own order in Tenant A",
-      "userId": "userA1",
-      "userTenantId": "tenantA",
-      "resourceType": "orders",
-      "objectId": "101",
-      "objectTenantId": "tenantA",
-      "action": "read",
-      "expectedResult": "authorized"
-    },
-    {
-      "scenario": "Cross-tenant unauthorized order access attempt (BOLA vulnerability)",
-      "userId": "userA1",
-      "userTenantId": "tenantA",
-      "resourceType": "orders",
-      "objectId": "201",
-      "objectTenantId": "tenantB",
-      "action": "read",
-      "expectedResult": "unauthorized"
-    },
-    {
-      "scenario": "Cross-tenant order read permitted via active delegation",
-      "userId": "userB1",
-      "userTenantId": "tenantB",
-      "resourceType": "orders",
-      "objectId": "101",
-      "objectTenantId": "tenantA",
-      "action": "read",
-      "expectedResult": "authorized"
-    }
-  ]
-}
-```
-
 ---
 
 ## Redis Ownership & Delegation Schemas
@@ -162,43 +90,52 @@ curl -X GET http://localhost:3000/_test/fixtures
 
 ---
 
-## Running the Services
+## Events Service & Privacy Redaction (M4)
+
+The Events Service (`events/`) provides audit logging and analytics:
+- `POST /v1/events`: Ingest authorization decisions (`ALLOW` or `BLOCK`) with reason codes (`OK_OWNER`, `TENANT_MISMATCH`, etc.).
+- `GET /v1/events`: Query security events with pagination and filters.
+- `GET /v1/events/:decisionId`: Fetch a specific event by decision ID.
+- `GET /v1/events/stream`: Server-Sent Events (SSE) stream for real-time live events.
+- `GET /v1/stats`: Aggregate security metrics (allow count, block count, block rate, latency).
+- `POST /v1/scans` & `GET /v1/scans`: Ingestion and viewing of vulnerability scanner reports.
+
+### Privacy Redaction Rule
+To prevent data leaks into audit logs:
+- **No raw credentials**: Authorization headers, cookies, and JWTs are stripped.
+- **Hashed identifiers**: `objectIdHash` and `subjectHash` are stored as SHA-256 digests.
+- **No body contents**: Request payloads are excluded from event records.
+
+---
+
+## Running the Complete System
 
 ### Docker Compose
 ```bash
-# Build and start all services
+# Build and start all 5 services
 docker compose up -d --build
 
 # View logs
 docker compose logs -f
 
-# Run end-to-end verification
-npx tsx scripts/verify-e2e.ts
+# Run multi-service end-to-end integration test
+npx tsx scripts/run-all-m2-m4-e2e.ts
 
-# Stop containers
+# Stop all containers
 docker compose down
 ```
 
-### Local Development (Without Docker)
-```bash
-# Terminal 1 - Ownership Service (Port 4000)
-cd ownership
-npm install
-npm run build
-npm start
-
-# Terminal 2 - Sample App (Port 3000)
-cd sample-app
-npm install
-npm run build
-npm start
-```
-
-### Running Tests
+### Running Test Suites
 ```bash
 # Ownership Service tests (19 tests)
 cd ownership && npm test
 
 # Sample App tests (31 tests)
 cd sample-app && npm test
+
+# Events Service tests (15 tests)
+cd events && npm test
+
+# Run complete integration script (65 tests + multi-service flows)
+npx tsx scripts/run-all-m2-m4-e2e.ts
 ```

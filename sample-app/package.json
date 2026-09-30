@@ -2,7 +2,7 @@
   "name": "sample-app",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
+  "main": "src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
@@ -17,12 +17,12 @@
   "dependencies": {
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
-    "zod": "^4.6.5"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }
