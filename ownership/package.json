@@ -1,0 +1,26 @@
+{
+  "name": "ownership-service",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "tsc --noEmit",
+    "seed": "tsx src/seed/runSeed.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "ioredis": "^5.4.1",
+    "ioredis-mock": "^8.9.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
