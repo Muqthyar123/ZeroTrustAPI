@@ -7,12 +7,15 @@ import { buildApp as buildEventsApp } from "../events/src/app.js";
 import crypto from "crypto";
 
 async function runAllIntegrationTests() {
-  const ownershipPort = 4088;
-  const samplePort = 3088;
-  const eventsPort = 5088;
+  // Configurable ports: Default to dedicated in-process test ports (3088/4088/5088)
+  // to avoid colliding with local dev servers or running Docker containers on standard ports (3000/4000/5000).
+  const samplePort = parseInt(process.env.SAMPLE_APP_PORT || "3088", 10);
+  const ownershipPort = parseInt(process.env.OWNERSHIP_PORT || "4088", 10);
+  const eventsPort = parseInt(process.env.EVENTS_PORT || "5088", 10);
 
   console.log("==================================================================");
   console.log(" ZeroTrustAPI - Full M2 + M4 Multi-Service Integration Verification");
+  console.log(` (Running on isolated in-process test ports: ${samplePort}, ${ownershipPort}, ${eventsPort})`);
   console.log("==================================================================");
 
   // 1. Initialize Redis & Seed for Ownership Service (M2)
@@ -20,7 +23,7 @@ async function runAllIntegrationTests() {
   const seedResult = await seedOwnershipData(redis);
   console.log(`[Seed] Initialized Redis seed data (${seedResult.ownershipsSeeded} ownerships, ${seedResult.delegationsSeeded} delegations).`);
 
-  // 2. Start Ownership Service (M2 - Port 4088)
+  // 2. Start Ownership Service (M2)
   const ownershipApp = buildOwnershipApp({ redis, fastifyOpts: { logger: false } });
   await ownershipApp.listen({ port: ownershipPort, host: "127.0.0.1" });
   console.log(`[M2 Service] Ownership Service listening on http://127.0.0.1:${ownershipPort}`);

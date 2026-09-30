@@ -110,32 +110,42 @@ To prevent data leaks into audit logs:
 
 ## Running the Complete System
 
+### Standard Service Ports
+- **Sample App**: `http://localhost:3000`
+- **Ownership Service**: `http://localhost:4000`
+- **Events Service**: `http://localhost:5000`
+- **Security Dashboard**: `http://localhost:5173`
+- **Redis Cache**: `localhost:6379`
+
 ### Docker Compose
 ```bash
-# Build and start all 5 services
+# Build and start all 5 services on standard ports
 docker compose up -d --build
 
 # View logs
 docker compose logs -f
 
-# Run multi-service end-to-end integration test
-npx tsx scripts/run-all-m2-m4-e2e.ts
+# Verify live stack on standard ports (3000, 4000, 5000, 5173)
+npx tsx scripts/verify-live-stack.ts
 
 # Stop all containers
 docker compose down
 ```
 
-### Running Test Suites
+### Running Test Suites & Verification Scripts
 ```bash
-# Ownership Service tests (19 tests)
+# 1. Ownership Service tests (19 tests)
 cd ownership && npm test
 
-# Sample App tests (31 tests)
+# 2. Sample App tests (31 tests)
 cd sample-app && npm test
 
-# Events Service tests (15 tests)
+# 3. Events Service tests (15 tests)
 cd events && npm test
 
-# Run complete integration script (65 tests + multi-service flows)
+# 4. Live stack verification against standard ports (3000, 4000, 5000, 5173)
+npx tsx scripts/verify-live-stack.ts
+
+# 5. In-process multi-service E2E integration runner (uses isolated ports 3088/4088/5088 to avoid port collisions during parallel CI runs)
 npx tsx scripts/run-all-m2-m4-e2e.ts
 ```

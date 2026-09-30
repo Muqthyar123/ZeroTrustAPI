@@ -4,8 +4,8 @@ import { seedOwnershipData } from "../ownership/src/seed/seedOwnership.js";
 import { buildApp as buildSampleApp } from "../sample-app/src/app.js";
 import { OwnershipClient } from "../sample-app/src/ownership/ownershipClient.js";
 import { buildApp as buildEventsApp } from "../events/src/app.js";
-import { createServer as createViteServer } from "vite";
 import http from "node:http";
+import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,19 +13,19 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dashboardDir = path.resolve(__dirname, "../dashboard");
+const dashboardDistDir = path.resolve(dashboardDir, "dist");
 
 async function runLiveStackVerification() {
   console.log("==================================================================");
   console.log(" ZeroTrustAPI - Live Multi-Service Verification (Standard Ports)");
   console.log("==================================================================");
 
-  const REDIS_PORT = 6379;
   const SAMPLE_APP_PORT = 3000;
   const OWNERSHIP_PORT = 4000;
   const EVENTS_PORT = 5000;
   const DASHBOARD_PORT = 5173;
 
-  console.log(`[Ports] Sample App: ${SAMPLE_APP_PORT}, Ownership: ${OWNERSHIP_PORT}, Events: ${EVENTS_PORT}, Dashboard: ${DASHBOARD_PORT}`);
+  console.log(`[Standard Ports] Sample App: ${SAMPLE_APP_PORT}, Ownership: ${OWNERSHIP_PORT}, Events: ${EVENTS_PORT}, Dashboard: ${DASHBOARD_PORT}`);
 
   // 1. Initialize Mock Redis and Seed Data
   const redis = createRedisMock();
@@ -50,16 +50,32 @@ async function runLiveStackVerification() {
   await eventsApp.listen({ port: EVENTS_PORT, host: "127.0.0.1" });
   console.log(`[Service: Events] Listening on http://127.0.0.1:${EVENTS_PORT}`);
 
-  // 5. Start Dashboard Vite Dev Server on Port 5173
-  const viteServer = await createViteServer({
-    root: dashboardDir,
-    server: {
-      port: DASHBOARD_PORT,
-      host: "127.0.0.1",
-    },
+  // 5. Start Dashboard HTTP Server on Port 5173 serving built dist
+  const dashboardServer = http.createServer((req, res) => {
+    let filePath = path.join(dashboardDistDir, req.url === "/" ? "index.html" : req.url || "index.html");
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(dashboardDistDir, "index.html");
+    }
+    const ext = path.extname(filePath);
+    const mimeTypes: Record<string, string> = {
+      ".html": "text/html",
+      ".js": "text/javascript",
+      ".css": "text/css",
+      ".json": "application/json",
+      ".svg": "image/svg+xml",
+    };
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+    try {
+      const content = fs.readFileSync(filePath);
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(content);
+    } catch {
+      res.writeHead(404);
+      res.end("Not Found");
+    }
   });
-  await viteServer.listen();
-  console.log(`[Service: Dashboard] Listening on http://127.0.0.1:${DASHBOARD_PORT}`);
+  await new Promise<void>((resolve) => dashboardServer.listen(DASHBOARD_PORT, "127.0.0.1", () => resolve()));
+  console.log(`[Service: Dashboard] Serving dist/ on http://127.0.0.1:${DASHBOARD_PORT}`);
 
   try {
     const SAMPLE_APP_URL = `http://127.0.0.1:${SAMPLE_APP_PORT}`;
@@ -85,10 +101,10 @@ async function runLiveStackVerification() {
     if (!dashHtml.includes("id=\"root\"") && !dashHtml.includes("vite")) {
       throw new Error("Dashboard did not serve valid HTML bundle");
     }
-    console.log(`✓ Dashboard (${DASHBOARD_URL}) -> ${rDashboard.status} OK (Served HTML UI)`);
+    console.log(`✓ Dashboard (${DASHBOARD_URL}) -> ${rDashboard.status} OK (Served HTML UI bundle)`);
 
     // ==================================================================
-    // TASK 2: Dashboard API Communication with Events Service
+    // TASK 2: Dashboard API Communication with Events Service (:5000)
     // ==================================================================
     console.log("\n--- [2. Dashboard API Communication with Events Service (:5000)] ---");
     
@@ -135,23 +151,23 @@ async function runLiveStackVerification() {
     // Verify statistics load
     const statsRes = await fetch(`${EVENTS_URL}/v1/stats`);
     if (!statsRes.ok) throw new Error(`Dashboard stats fetch failed: ${statsRes.status}`);
-    const statsData = await statsRes.json();
-    console.log(`✓ Dashboard Statistics loaded successfully: totalEvents=${statsData.totalEvents}, allowed=${statsData.allowed}, blocked=${statsData.blocked}`);
+    const statsData = (await statsRes.json()) as any;
+    console.log(`✓ Dashboard Statistics loaded successfully: totalEvents=${statsData.totalEvents}, allowed=${statsData.allowed}, blocked=${statsData.blocked}, blockRate=${statsData.blockRate}%`);
 
     // Verify events load
     const eventsRes = await fetch(`${EVENTS_URL}/v1/events`);
     if (!eventsRes.ok) throw new Error(`Dashboard events fetch failed: ${eventsRes.status}`);
-    const eventsData = await eventsRes.json();
+    const eventsData = (await eventsRes.json()) as any[];
     console.log(`✓ Dashboard Events list loaded successfully: ${eventsData.length} events returned`);
 
     // Verify scan results load
     const scansRes = await fetch(`${EVENTS_URL}/v1/scans`);
     if (!scansRes.ok) throw new Error(`Dashboard scans fetch failed: ${scansRes.status}`);
-    const scansData = await scansRes.json();
+    const scansData = (await scansRes.json()) as any[];
     console.log(`✓ Dashboard Scan results loaded successfully: ${scansData.length} scans returned`);
 
     // ==================================================================
-    // TASK 3: Real-Time SSE Stream Verification
+    // TASK 3: Real-Time SSE Stream & Live Broadcast Verification
     // ==================================================================
     console.log("\n--- [3. Real-Time SSE Stream & Live Broadcast Verification] ---");
     
@@ -196,7 +212,7 @@ async function runLiveStackVerification() {
       });
     });
 
-    // Wait for SSE handshake
+    // Wait for SSE connection handshake
     await new Promise((r) => setTimeout(r, 200));
 
     // Post a live event to trigger broadcast
@@ -231,7 +247,7 @@ async function runLiveStackVerification() {
     console.log(`✓ Confirmed payload in SSE stream: ${sseReceivedData.trim()}`);
 
     // ==================================================================
-    // TASK 4: M2 Sample App & Ownership Deep Verification
+    // TASK 4: M2 Sample App & Ownership Endpoints Verification
     // ==================================================================
     console.log("\n--- [4. M2 Sample App & Ownership Endpoints Verification] ---");
     
@@ -241,14 +257,14 @@ async function runLiveStackVerification() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "userA1@example.com", password: "password123" })
     });
-    const { token: tokenA1 } = await loginA1.json();
-    console.log("✓ UserA1 logged in successfully.");
+    const { token: tokenA1 } = (await loginA1.json()) as any;
+    console.log("✓ userA1 logged in successfully.");
 
     // BOLA Demonstration
     const bolaRes = await fetch(`${SAMPLE_APP_URL}/api/orders/201`, {
       headers: { Authorization: `Bearer ${tokenA1}` }
     });
-    const bolaData = await bolaRes.json();
+    const bolaData = (await bolaRes.json()) as any;
     console.log(`✓ BOLA verified in APP_MODE=vulnerable: userA1 accessed tenantB order 201 (${bolaData.items[0].item})`);
 
     // Write-Through creation
@@ -261,30 +277,30 @@ async function runLiveStackVerification() {
         status: "pending"
       })
     });
-    const createdOrder = await createOrderRes.json();
+    const createdOrder = (await createOrderRes.json()) as any;
     const newOrderId = createdOrder.id;
     console.log(`✓ Order ${newOrderId} created.`);
 
     // Ownership Lookup
     const ownCheck = await fetch(`${OWNERSHIP_URL}/v1/ownership/orders/${newOrderId}`);
-    const ownData = await ownCheck.json();
+    const ownData = (await ownCheck.json()) as any;
     console.log(`✓ Ownership synchronized to Redis: objectId=${ownData.objectId}, tenantId=${ownData.tenantId}, ownerUserId=${ownData.ownerUserId}`);
 
     // OpenAPI
     const openApiRes = await fetch(`${SAMPLE_APP_URL}/openapi.json`);
-    const openApiDoc = await openApiRes.json();
+    const openApiDoc = (await openApiRes.json()) as any;
     console.log(`✓ OpenAPI contract verified: ${openApiDoc.openapi}, ${Object.keys(openApiDoc.paths).length} routes documented.`);
 
     // Fixtures
     const fixRes = await fetch(`${SAMPLE_APP_URL}/_test/fixtures`);
-    const fixData = await fixRes.json();
+    const fixData = (await fixRes.json()) as any;
     console.log(`✓ Test Fixtures verified: ${fixData.users.length} users, ${fixData.objects.orders.length} orders, ${fixData.delegations.length} delegations.`);
 
     console.log("\n==================================================================");
     console.log(" ALL LIVE STACK VERIFICATIONS PASSED CLEANLY ON STANDARD PORTS!");
     console.log("==================================================================");
   } finally {
-    await viteServer.close();
+    await new Promise<void>((resolve) => dashboardServer.close(() => resolve()));
     await eventsApp.close();
     await sampleApp.close();
     await ownershipApp.close();
